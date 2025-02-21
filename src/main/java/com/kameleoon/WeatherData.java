@@ -17,6 +17,6 @@ public class WeatherData {
 
     @Override
     public String toString() {
-        return String.format("Weather: %s, Temp: %.2f°C, Feels Like: %.2f°C", main, temp - 273.15, feelsLike - 273.15);
+        return String.format("Weather: %s, Description: %s, Temp: %.2f°C, Feels Like: %.2f°C", main, description, temp - 273.15, feelsLike - 273.15);
     }
 }

@@ -20,7 +20,7 @@ public class WeatherSDKTest {
     }
 
     @Test
-    public void testGetWeather_CorrectData() throws IOException {
+    public void testGetWeatherCorrectData() throws IOException {
         WeatherSDK sdk = mock(WeatherSDK.class);
 
         String jsonResponse = "{ \"weather\": [{ \"main\": \"Clouds\", \"description\": \"scattered clouds\" }], \"main\": { \"temp\": 280.32, \"feels_like\": 278.5 } }";
