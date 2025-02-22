@@ -10,6 +10,9 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -19,28 +22,40 @@ public class WeatherSDK {
 
     private static final String API_URL = "https://api.openweathermap.org/data/2.5/weather?q=%s&appid=%s";
     private final String apiKey;
-    private final boolean pollingMode;
     private static WeatherSDK instance;
-    private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
+
+    private final Map<String, WeatherData> cityCache = new LinkedHashMap<>(10, 0.75f, true) {
+        @Override
+        protected boolean removeEldestEntry(Map.Entry<String, WeatherData> eldest) {
+            return size() > 10;
+        }
+    };
 
     public WeatherSDK(String apiKey, boolean pollingMode) {
         this.apiKey = apiKey;
-        this.pollingMode = pollingMode;
         logger.info("WeatherSDK initialized with API key: {}", apiKey);
 
         if (pollingMode) {
-            scheduler.scheduleAtFixedRate(this::updateAllCities, 0, 10, TimeUnit.MINUTES);
-            logger.info("Polling mode enabled, updating every 10 minutes.");
+            startPolling();
         }
     }
 
     public static WeatherSDK getInstance(String apiKey, boolean pollingMode) {
+        if (instance == null || !instance.apiKey.equals(apiKey)) {
+            instance = new WeatherSDK(apiKey, pollingMode);
+        }
         logger.info("Creating new WeatherSDK instance...");
-        return new WeatherSDK(apiKey, pollingMode);
+        return instance;
     }
 
     public WeatherData getWeather(String city) throws IOException {
         logger.info("Fetching weather for city: {}", city);
+
+        if (cityCache.containsKey(city)) {
+            logger.info("Returning cached weather data for city: {}", city);
+            return cityCache.get(city);
+        }
+
         WeatherData data = fetchWeather(city);
         logger.info("Weather data received: {}", data);
         return data;
@@ -77,10 +92,25 @@ public class WeatherSDK {
 
         ObjectMapper objectMapper = new ObjectMapper();
         JsonNode jsonNode = objectMapper.readTree(conn.getInputStream());
-        return new WeatherData(jsonNode);
+        WeatherData weatherData = new WeatherData(jsonNode);
+
+        cityCache.put(city, weatherData);
+
+        return weatherData;
     }
 
-    private void updateAllCities() {
-        logger.info("Updating weather for all cached cities...");
+    private void startPolling() {
+        ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
+        scheduler.scheduleAtFixedRate(() -> {
+            try {
+                logger.info("Polling mode: Updating weather for all cities...");
+                Set<String> cities = cityCache.keySet();
+                for (String city : cities) {
+                    fetchWeather(city);
+                }
+            } catch (IOException e) {
+                logger.error("Error during polling: {}", e.getMessage());
+            }
+        }, 0, 10, TimeUnit.MINUTES);
     }
 }
